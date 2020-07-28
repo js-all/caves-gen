@@ -5,15 +5,15 @@ const ch = 2048;
 canvas.width = cw;
 canvas.height = ch;
 
-const mapSize = new Vector(64, 64);
+const mapSize = new Vector(16, 16);
 const neighbourTreshold = 4
 const neighbourDistance = new Vector(1, 1);
-const fillPercent = 35;
+const fillPercent = 20;
 const fillEdges = true;
 const tmpTris: Tris<Vector>[] = [];
 const Verticies: Vector[] = [];
 const tris: Tris<number>[] = [];
-const OutlineEdges: [number, number][] = [];
+const OutlineEdgesLoops: number[][] = [];
 // list of indexes that, VerticiesIndexList[vertex] will give out the index of every tris that use that vertex
 const VerticiesIndexList: number[][] = [];
 /**
@@ -26,7 +26,7 @@ var MapDebug = false;
 var MapDebugShowCellType = false;
 var MapRenderingMethod: "circles" | "squares" = "circles";
 var Rendering: "Map" | "Marching" = "Marching";
-var ShowMarchingWireFrame = false;
+var ShowMarchingWireFrame = true;
 var MarchingWireFrameSize = 3;
 var showMarchingGrid = false;
 const tileSize = new Vector(cw / mapSize.x, ch / mapSize.y);
@@ -126,17 +126,19 @@ function draw() {
             ctx.stroke();
             ctx.closePath();
         }
-        if (OutlineEdges[0] !== undefined) {
-            ctx.strokeStyle = "grey";
-            ctx.lineWidth = 10;
-            for (let i of OutlineEdges) {
-                ctx.beginPath()
-                ctx.moveTo(...Verticies[i[0]].multiply(tileSize).toArray())
-                ctx.lineTo(...Verticies[i[1]].multiply(tileSize).toArray())
-                ctx.stroke();
-                ctx.closePath();
+        ctx.lineWidth = 5;
+        for (let i of OutlineEdgesLoops) {
+            ctx.strokeStyle = `hsl(${OutlineEdgesLoops.indexOf(i) / OutlineEdgesLoops.length * 360}, 100%, 50%)`;
+            ctx.beginPath()
+            ctx.moveTo(...Verticies[i[0]].multiply(tileSize).toArray());
+            for (let j of i) {
+                ctx.lineTo(...Verticies[j].multiply(tileSize).toArray());
             }
+            ctx.lineTo(...Verticies[i[0]].multiply(tileSize).toArray());
+            ctx.stroke();
+            ctx.closePath();
         }
+
     }
     requestAnimationFrame(draw);
 }
@@ -283,7 +285,7 @@ function cleanMarchedMesh() {
 }
 
 function getOutlinesFromCleanMesh() {
-    OutlineEdges.splice(0, OutlineEdges.length);
+    const OutlineEdges: [number, number][] = []
     for (let v = 0; v < Verticies.length; v++) {
         const linkedTris = VerticiesIndexList[v];
         const linkedEdges: [number, number][] = [];
@@ -311,6 +313,32 @@ function getOutlinesFromCleanMesh() {
                 OutlineEdges.push(i);
             }
         }
+    }
+    while (OutlineEdges.length > 0) {
+        const EdgeLoop: number[] = [];
+        let startIndex = 0;
+        let start = OutlineEdges[startIndex];
+        let foundNext = false;
+        do {
+            OutlineEdges.splice(startIndex, 1);
+            foundNext = false;
+            EdgeLoop.push(start[0]);
+            for (let i = 0; i < OutlineEdges.length; i++) {
+                if (start[1] == OutlineEdges[i][0]) {
+                    start = [OutlineEdges[i][0], OutlineEdges[i][1]];
+                    startIndex = i;
+                    foundNext = true;
+                    break;
+                } else if (start[1] == OutlineEdges[i][1]) {
+                    start = [OutlineEdges[i][1], OutlineEdges[i][0]]
+                    startIndex = i;
+                    foundNext = true;
+                    break;
+                }
+            }
+        }
+        while (foundNext);
+        OutlineEdgesLoops.push(EdgeLoop);
     }
 }
 
